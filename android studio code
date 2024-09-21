@@ -1,0 +1,236 @@
+Changing .h5 file to .tflite
+
+Type the below in terminal
+  tflite_convert --keras_model_file=C:/Users/abc/OneDrive/Desktop/project/keras_model.h5 --
+output_file=C:/Users/abc/OneDrive/Desktop/project/project_model.tflite --quantize
+
+Android Studio
+1. Open Android Studio
+2. Click on new project
+3. Select type of template
+4. Name the application
+5. Select language (java)
+6. Select the Android version (Here we selected [API 19 
+("KitKat"; Android 4.4)])
+
+
+#User Interface 
+Acitivity_main.xml
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+ xmlns:app="http://schemas.android.com/apk/res-auto"
+ xmlns:tools="http://schemas.android.com/tools"
+ android:layout_width="match_parent"
+ android:layout_height="match_parent"
+ tools:context=".MainActivity">
+ <Button
+ android:layout_width="match_parent"
+ android:layout_height="wrap_content"
+ android:layout_centerInParent="true"
+ android:id="@+id/button"
+ android:text="Take Picture"
+ android:textAllCaps="false"
+ android:layout_alignParentBottom="true"
+ android:textSize="21sp"
+ android:textStyle="bold"
+ />
+ <ImageView
+ android:layout_width="370sp"
+ android:layout_height="370sp"
+ android:layout_centerHorizontal="true"
+ android:id="@+id/imageView"
+ android:layout_marginTop="10sp"
+ />
+ <TextView
+ android:layout_width="wrap_content"
+ android:layout_height="wrap_content"
+ android:layout_centerHorizontal="true"
+ android:text="Classified as:"
+ android:textStyle="bold"
+ android:textSize="20sp"
+ android:id="@+id/classified"
+ android:layout_below="@+id/imageView"
+ android:layout_marginTop="10sp"
+ />
+ <TextView
+ android:layout_width="wrap_content"
+ android:layout_height="wrap_content"
+ android:layout_centerHorizontal="true"
+ android:text=""
+ android:textColor="#C30000"
+ android:textStyle="bold"
+ android:textSize="27sp"
+ android:id="@+id/result"
+ android:layout_below="@+id/classified"
+ />
+ <TextView
+ android:layout_width="wrap_content"
+ android:layout_height="wrap_content"
+ android:id="@+id/confidencesText"
+ android:text="Confidences:"
+ android:textStyle="bold"
+ android:textSize="20sp"
+ android:layout_centerHorizontal="true"
+ android:layout_below="@+id/result"
+ android:layout_marginTop="30sp"
+ />
+ <TextView
+ android:layout_width="wrap_content"
+ android:layout_height="wrap_content"
+ android:layout_centerHorizontal="true"
+ android:text=""
+ android:textColor="#000"
+ android:textSize="22sp"
+ android:id="@+id/confidence"
+ android:layout_below="@+id/confidencesText"
+ />
+</RelativeLayout>
+
+
+
+#To Gain Camera Access
+We make changes in AndroidManifestation.xml
+<uses-feature
+ android:name="android.hardware.camera"
+ android:required="false" />
+ <uses-permission android:name="android.permission.CAMERA"/>
+
+
+Now to need to import our machine Learning Model in Android 
+Studio
+a) Right click on the top left app navigation folder
+b) Click on New
+c) At the end of the list we have Others click on it
+d) Select TensorFlow Lite
+e) Browse your Model i.e. Select your model 
+f) Click on Open
+g) Successfully Uploaded our machine learning model
+
+
+
+#Working of Application
+MainActivity.java
+package com.ad.biosense;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
+import android.Manifest;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.media.ThumbnailUtils;
+import android.os.Build;
+import android.os.Bundle;
+import android.provider.MediaStore;
+import android.view.View;
+import android.widget.Button;
+import android.widget.ImageView;
+import android.widget.TextView;
+import com.ad.biosense.ml.Model;
+import org.tensorflow.lite.DataType;
+import org.tensorflow.lite.support.tensorbuffer.TensorBuffer;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+public class MainActivity extends AppCompatActivity {
+ TextView result, confidence;
+ ImageView imageView;
+ Button picture;
+ int imageSize = 224;
+ @Override
+ protected void onCreate(Bundle savedInstanceState) {
+ super.onCreate(savedInstanceState);
+ setContentView(R.layout.activity_main);
+ result = findViewById(R.id.result);
+ confidence = findViewById(R.id.confidence);
+ imageView = findViewById(R.id.imageView);
+ picture = findViewById(R.id.button);
+ picture.setOnClickListener(new View.OnClickListener() {
+ @Override
+ public void onClick(View view) {
+ // Launch camera if we have permission
+ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+ if (checkSelfPermission(Manifest.permission.CAMERA) == 
+PackageManager.PERMISSION_GRANTED) {
+ Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+ startActivityForResult(cameraIntent, 1);
+ } else {
+ //Request camera permission if we don't have it.
+ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+ requestPermissions(new String[]{Manifest.permission.CAMERA}, 100);
+ }
+ }
+ }
+ }
+ });
+ }
+ public void classifyImage(Bitmap image){
+ try {
+ Model model = Model.newInstance(getApplicationContext());
+ // Creates inputs for reference.
+ TensorBuffer inputFeature0 = TensorBuffer.createFixedSize(new int[]{1, 224, 224, 3}, DataType.FLOAT32);
+ ByteBuffer byteBuffer = ByteBuffer.allocateDirect(4 * imageSize * imageSize * 3);
+ byteBuffer.order(ByteOrder.nativeOrder());
+ int [] intValues = new int[imageSize * imageSize];
+ 
+image.getPixels(intValues,0,image.getWidth(),0,0,image.getWidth(),image.getHeight());
+ int pixel =0;
+ for(int i=0;i<imageSize;i++){
+ for(int j=0;j<imageSize;j++){
+ int val=intValues[pixel++];
+ byteBuffer.putFloat(((val>>16)&0xFF)*(1.f/255.f));
+ byteBuffer.putFloat(((val>>8)&0xFF)*(1.f/255.f));
+ byteBuffer.putFloat((val & 0xFF)*(1.f/255.f));
+ }
+ }
+ inputFeature0.loadBuffer(byteBuffer);
+ // Runs model inference and gets result.
+ Model.Outputs outputs = model.process(inputFeature0);
+ TensorBuffer outputFeature0 = outputs.getOutputFeature0AsTensorBuffer();
+ float[] confidences = outputFeature0.getFloatArray();
+ int maxPos=0;
+ float maxConfidence = 0;
+ for(int i=0;i<confidences.length;i++){
+ if(confidences[i]>maxConfidence){
+ maxConfidence=confidences[i];
+ maxPos=i;
+ }
+ }
+ String[] classes = {"Bio Degradable","Non Bio Degradable","Empty"};
+ result.setText(classes[maxPos]);
+ String s= "";
+ for(int i=0;i< classes.length;i++){
+ s+=String.format("%s: %.1f%%\n",classes[i],confidences[i]*100);
+ }
+ confidence.setText(s);
+ // Releases model resources if no longer used.
+ model.close();
+ } catch (IOException e) {
+ // TODO Handle the exception
+ }
+ }
+ @Override
+ public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+ if (requestCode == 1 && resultCode == RESULT_OK) {
+ Bitmap image = (Bitmap) data.getExtras().get("data");
+ int dimension = Math.min(image.getWidth(),image.getHeight());
+ image = ThumbnailUtils.extractThumbnail(image,dimension,dimension);
+ imageView.setImageBitmap(image);
+ image=Bitmap.createScaledBitmap(image,imageSize,imageSize,false);
+ classifyImage(image);
+ }
+ super.onActivityResult(requestCode, resultCode, data);
+ }
+}
+
+
+
+To run your application on mobile we are going to enable Developer 
+options on your phone
+Turn on USB Debugging or Wireless Debugging
+And connect if it is wireless wait till the connection is established
+After establishing of connection click on Run your phone is going to 
+open the application.
+
+
+
+
