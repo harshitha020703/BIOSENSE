@@ -354,7 +354,7 @@ def show_image_samples(gen ):
 show_image_samples(train_gen )
 OUTPUT:
 Image output
-
+![Uploading bio 1.png…]()
 
 #Create a model using transfer learning with EfficientNetB3
 def make_model(img_size, lr, mod_num=3): 
