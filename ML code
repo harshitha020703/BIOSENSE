@@ -353,7 +353,7 @@ def show_image_samples(gen ):
  
 show_image_samples(train_gen )
 OUTPUT:
-Image output
+bio 1.png
 
 
 
